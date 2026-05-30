@@ -2,9 +2,9 @@
 import os
 
 # 飞书配置
-FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "cli_aa8a3a870d789cb1")
-FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "LRlOiS6mYruAvHgnmTFBEbk6dMkmhiWj")
-FEISHU_CHAT_ID = os.getenv("FEISHU_CHAT_ID", "oc_ed483f60e1bc9408534038ee155eaf5d")
+FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
+FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
+FEISHU_CHAT_ID = os.getenv("FEISHU_CHAT_ID", "")
 
 # 数据范围
 START_DATE = "2024-01-01"

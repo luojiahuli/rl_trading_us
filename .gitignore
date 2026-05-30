@@ -3,5 +3,6 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
-output/
+output/logs/
+output/models/
 .DS_Store
