@@ -73,9 +73,9 @@ bash daily_push.sh
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `FEISHU_APP_ID` | 飞书应用 ID | `cli_aa8a3a870d789cb1` |
-| `FEISHU_APP_SECRET` | 飞书应用 Secret | - |
-| `FEISHU_CHAT_ID` | 飞书群 ID | `oc_ed483f60e1bc9408534038ee155eaf5d` |
+| `FEISHU_APP_ID` | 飞书应用 ID | 环境变量 `FEISHU_APP_ID` |
+| `FEISHU_APP_SECRET` | 飞书应用 Secret | 环境变量 `FEISHU_APP_SECRET` |
+| `FEISHU_CHAT_ID` | 飞书群 ID | 环境变量 `FEISHU_CHAT_ID` |
 | `MIN_STOCK_PRICE` | 最低股价过滤 | $5.0 |
 | `INITIAL_CASH` | 初始资金 | $1,000,000 |
 
