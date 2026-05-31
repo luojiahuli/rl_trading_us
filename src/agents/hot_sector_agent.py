@@ -1,15 +1,21 @@
-"""热门板块挖掘 Agent — 美股版（Yahoo Finance US + CNBC + Reuters + Finviz + MarketWatch）"""
-import re
-import requests
+#!/usr/bin/env python3
+"""热门板块挖掘 Agent — 美股版（基于 scrapling_utils）"""
 from ..agents.base import AgentContext, BaseAgent
 from ..data.sector_map import extract_hot_sectors_from_news, _SECTOR_STOCK_MAP_US
 from ..data.fetcher import fetch_us_news
+from scrapling_utils import SmartFetcher
+from scrapling_utils.news_sources import (
+    YahooFinanceNews, CNBCNews, ReutersNews,
+    FinvizNews, MarketWatchNews, CailiansheNews,
+)
 
-_SESSION = requests.Session()
-_SESSION.headers.update({
-    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-})
+_fetcher = SmartFetcher()
+_yahoo = YahooFinanceNews(); _yahoo.fetcher = _fetcher
+_cnbc = CNBCNews(); _cnbc.fetcher = _fetcher
+_reuters = ReutersNews(); _reuters.fetcher = _fetcher
+_finviz = FinvizNews(); _finviz.fetcher = _fetcher
+_mw = MarketWatchNews(); _mw.fetcher = _fetcher
+_cls = CailiansheNews(); _cls.fetcher = _fetcher
 
 
 class HotSectorMiningAgent(BaseAgent):
@@ -19,53 +25,39 @@ class HotSectorMiningAgent(BaseAgent):
     def execute(self, context: AgentContext) -> AgentContext:
         all_news = []
 
-        # 1. Yahoo Finance US
-        news = self._fetch_yahoo_finance_us()
-        if news:
-            context.warnings.append(f"Yahoo Finance US: {len(news)} 条新闻")
-            all_news.extend(news)
-
-        # 2. CNBC
-        if not all_news:
-            news = self._fetch_cnbc_news()
-            if news:
-                context.warnings.append(f"CNBC: {len(news)} 条新闻")
-                all_news.extend(news)
-
-        # 3. Reuters
-        if not all_news:
-            news = self._fetch_reuters_news()
-            if news:
-                context.warnings.append(f"Reuters: {len(news)} 条新闻")
-                all_news.extend(news)
-
-        # 4. Finviz
-        if not all_news:
-            news = self._fetch_finviz_news()
-            if news:
-                context.warnings.append(f"Finviz: {len(news)} 条新闻")
-                all_news.extend(news)
-
-        # 5. MarketWatch
-        if not all_news:
-            news = self._fetch_marketwatch_news()
-            if news:
-                context.warnings.append(f"MarketWatch: {len(news)} 条新闻")
-                all_news.extend(news)
+        # 尝试各新闻源（遇到第一个成功的就停止）
+        for source_name, src in [
+            ("yahoo_finance", _yahoo),
+            ("cnbc", _cnbc),
+            ("reuters", _reuters),
+            ("finviz", _finviz),
+            ("marketwatch", _mw),
+        ]:
+            try:
+                items = src.fetch()
+                if items:
+                    context.warnings.append(f"{source_name}: {len(items)} 条新闻")
+                    all_news = [n.to_dict() for n in items]
+                    break
+            except Exception as e:
+                context.warnings.append(f"{source_name} 失败: {e}")
 
         # 6. yfinance API
         if not all_news:
             news = fetch_us_news()
             if news:
                 context.warnings.append(f"Yahoo Finance API: {len(news)} 条新闻")
-                all_news.extend(news)
+                all_news = news
 
         # 7. 财联社（中文兜底）
         if not all_news:
-            news = self._fetch_cls_news()
-            if news:
-                context.warnings.append(f"财联社: {len(news)} 条新闻")
-                all_news.extend(news)
+            try:
+                items = _cls.fetch()
+                if items:
+                    context.warnings.append(f"财联社: {len(items)} 条新闻")
+                    all_news = [n.to_dict() for n in items]
+            except Exception:
+                pass
 
         context.news_data = all_news
 
@@ -82,7 +74,6 @@ class HotSectorMiningAgent(BaseAgent):
 
         context.warnings.append(f"美股热门板块: {len(context.hot_sectors)} 个")
 
-        # 预填 stock_pool（供 data_agent 使用）
         pool = []
         for s in context.hot_sectors:
             for code in s.get("stocks", []):
@@ -92,102 +83,7 @@ class HotSectorMiningAgent(BaseAgent):
 
         return context
 
-    def _fetch_yahoo_finance_us(self) -> list:
-        """从 Yahoo Finance 获取美股新闻"""
-        try:
-            r = _SESSION.get("https://finance.yahoo.com/news/", timeout=10)
-            r.raise_for_status()
-            titles = re.findall(r'<h3[^>]*>(.*?)</h3>', r.text, re.DOTALL)[:10]
-            items = []
-            for t in titles:
-                clean = re.sub(r'<.*?>', '', t).strip()
-                if clean:
-                    items.append({"source": "yahoo_finance", "title": clean, "content": clean})
-            return items
-        except Exception:
-            return []
-
-    def _fetch_cnbc_news(self) -> list:
-        """从 CNBC 获取美股新闻"""
-        try:
-            r = _SESSION.get("https://www.cnbc.com/markets/", timeout=10)
-            r.raise_for_status()
-            titles = re.findall(r'<a[^>]*class="Card-title"[^>]*>(.*?)</a>', r.text, re.DOTALL)[:10]
-            items = []
-            for t in titles:
-                clean = re.sub(r'<.*?>', '', t).strip()
-                if clean:
-                    items.append({"source": "cnbc", "title": clean, "content": clean})
-            return items
-        except Exception:
-            return []
-
-    def _fetch_reuters_news(self) -> list:
-        """从 Reuters 获取美股新闻"""
-        try:
-            r = _SESSION.get("https://www.reuters.com/markets/", timeout=10)
-            r.raise_for_status()
-            titles = re.findall(r'<h[2-4][^>]*>(.*?)</h[2-4]>', r.text, re.DOTALL)[:10]
-            items = []
-            for t in titles:
-                clean = re.sub(r'<.*?>', '', t).strip()
-                if clean and len(clean) > 20:
-                    items.append({"source": "reuters", "title": clean, "content": clean})
-            return items
-        except Exception:
-            return []
-
-    def _fetch_finviz_news(self) -> list:
-        """从 Finviz 获取美股新闻"""
-        try:
-            r = _SESSION.get("https://finviz.com/news.ashx", timeout=10,
-                             headers={"Referer": "https://finviz.com/"})
-            r.raise_for_status()
-            titles = re.findall(r'<a[^>]*class="nn-tab-link"[^>]*>(.*?)</a>', r.text, re.DOTALL)[:10]
-            items = []
-            for t in titles:
-                clean = re.sub(r'<.*?>', '', t).strip()
-                if clean:
-                    items.append({"source": "finviz", "title": clean, "content": clean})
-            return items
-        except Exception:
-            return []
-
-    def _fetch_marketwatch_news(self) -> list:
-        """从 MarketWatch 获取美股新闻"""
-        try:
-            r = _SESSION.get("https://www.marketwatch.com/latest-news", timeout=10)
-            r.raise_for_status()
-            titles = re.findall(r'<h[2-4][^>]*class="article__headline"[^>]*>(.*?)</h[2-4]>',
-                                r.text, re.DOTALL)[:10]
-            if not titles:
-                titles = re.findall(r'<a[^>]*class="link"[^>]*>(.*?)</a>', r.text, re.DOTALL)[:10]
-            items = []
-            for t in titles:
-                clean = re.sub(r'<.*?>', '', t).strip()
-                if clean:
-                    items.append({"source": "marketwatch", "title": clean, "content": clean})
-            return items
-        except Exception:
-            return []
-
-    def _fetch_cls_news(self) -> list:
-        """从财联社获取中文新闻（兜底）"""
-        try:
-            r = requests.get("https://www.cls.cn/api/telegraph",
-                             params={"category": 1, "limit": 10}, timeout=10)
-            data = r.json()
-            items = []
-            for roll in data.get("data", {}).get("roll_data", []):
-                title = roll.get("title", "") or roll.get("content", "")
-                if title:
-                    items.append({"source": "cls", "title": title, "content": title})
-            return items
-        except Exception:
-            return []
-
     def _preset_sectors(self) -> list[dict]:
-        """兜底预设板块"""
         results = []
         heat = 85
         for sector, stocks in _SECTOR_STOCK_MAP_US.items():
