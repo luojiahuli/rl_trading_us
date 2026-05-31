@@ -45,6 +45,30 @@
 新闻 ──→ 板块 ──→ 日线数据 ──→ 技术指标 ──→ 时间序列信号 ──→ RL决策 ──→ 报告/可视化/飞书
 ```
 
+### ECC 架构增强
+
+热点板块挖掘采用 **ECC（Everything Claude Code）** 架构模式：
+
+#### COLLECT → ENRICH → STORE
+
+```
+COLLECT: fetch_all_parallel(market="us")
+         └── Yahoo + CNBC + Reuters + Finviz + MarketWatch + 财联社  并行抓取
+ENRICH:  classify_sectors(texts, ...)
+         └── 关键词 + 可选 Gemini LLM                              双通道板块分类
+STORE:   SECTOR_STOCK_MAP_US → hot_sectors                        热度评分 + 成分股映射
+```
+
+| 改进维度 | 重构前 | 重构后（ECC） |
+|----------|--------|--------------|
+| 抓取方式 | 顺序轮询，停在第1个成功源 | 6 源并行，合并去重取最大覆盖 |
+| 板块分类 | 正则关键词匹配 | 关键词 + 可选 Gemini LLM 双通道 |
+| 缓存 | 无 | SHA-256 内容哈希 + 30 分钟 TTL |
+| 自动化 | 手动运行 | GitHub Actions 定时（美东 9:30/16:00） |
+| 共享代码 | 独立维护 | `scrapling_utils` 统一引擎 |
+
+### Agent 管线
+
 10 Agent 管线: HotSector → DataFetch → TSSignal → RL → MultiStrategy → Risk → Report → Viz → Feishu → Storage
 
 ## 快速开始
